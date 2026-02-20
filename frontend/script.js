@@ -13,6 +13,7 @@ const charCount = document.getElementById('char-count');
 
 // Estado
 let isProcessing = false;
+let sessionId = localStorage.getItem('chat_session_id') || null;
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
@@ -89,7 +90,10 @@ async function handleSendMessage() {
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({
+                message,
+                session_id: sessionId
+            }),
         });
 
         if (!response.ok) {
@@ -98,6 +102,12 @@ async function handleSendMessage() {
         }
 
         const data = await response.json();
+
+        // Armazenar session_id recebido do servidor
+        if (data.session_id && data.session_id !== sessionId) {
+            sessionId = data.session_id;
+            localStorage.setItem('chat_session_id', sessionId);
+        }
 
         // Remover indicador de digitação
         typingIndicator.remove();
@@ -170,13 +180,31 @@ async function handleClearChat() {
     }
 
     try {
+        // Se não houver session_id, apenas limpar a interface
+        if (!sessionId) {
+            messagesContainer.innerHTML = `
+                <div class="welcome-message">
+                    <p>👋 Olá! Sou o Claude. Como posso ajudar você hoje?</p>
+                </div>
+            `;
+            return;
+        }
+
         const response = await fetch(`${API_URL}/clear`, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ session_id: sessionId }),
         });
 
         if (!response.ok) {
             throw new Error('Erro ao limpar histórico');
         }
+
+        // Gerar novo session_id para começar uma nova conversa
+        sessionId = null;
+        localStorage.removeItem('chat_session_id');
 
         // Limpar interface
         messagesContainer.innerHTML = `

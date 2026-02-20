@@ -14,8 +14,10 @@ from pydantic import BaseModel, field_validator
 from anthropic import Anthropic
 from dotenv import load_dotenv
 import os
-from typing import List, Dict
+import uuid
+from typing import List, Dict, Optional
 from pathlib import Path
+from datetime import datetime, timedelta
 
 # Carregar variáveis de ambiente
 load_dotenv()
@@ -45,8 +47,9 @@ if not ANTHROPIC_API_KEY:
 
 client = Anthropic(api_key=ANTHROPIC_API_KEY)
 
-# Armazenamento em memória do histórico de conversas
-conversation_history: List[Dict[str, str]] = []
+# Armazenamento em memória do histórico de conversas por sessão
+# Estrutura: {session_id: {"history": [...], "last_activity": datetime}}
+sessions: Dict[str, Dict] = {}
 
 # Configurar servir arquivos estáticos (frontend)
 # Obter caminho absoluto do diretório frontend
@@ -63,8 +66,10 @@ class ChatRequest(BaseModel):
 
     Attributes:
         message: Texto da mensagem do usuário (máx 2000 caracteres)
+        session_id: ID opcional da sessão (gerado automaticamente se não fornecido)
     """
     message: str
+    session_id: Optional[str] = None
 
     @field_validator('message')
     @classmethod
@@ -94,10 +99,12 @@ class ChatResponse(BaseModel):
 
     Attributes:
         response: Texto da resposta gerada pelo Claude
-        history_size: Quantidade total de mensagens no histórico
+        history_size: Quantidade total de mensagens no histórico da sessão
+        session_id: ID da sessão do usuário
     """
     response: str
     history_size: int
+    session_id: str
 
 
 @app.get("/")
@@ -123,24 +130,43 @@ async def chat(request: ChatRequest):
 
     Implementa janela deslizante: mantém apenas as últimas 6 mensagens
     (3 turnos de conversa) no contexto enviado para a API do Claude.
+    Cada usuário tem sua própria sessão isolada.
 
     Fluxo:
-        1. Adiciona mensagem do usuário ao histórico
-        2. Aplica janela deslizante (últimas 6 mensagens)
-        3. Envia contexto para API do Claude
-        4. Armazena resposta do assistente
-        5. Retorna resposta ao cliente
+        1. Gera ou recupera session_id
+        2. Adiciona mensagem do usuário ao histórico da sessão
+        3. Aplica janela deslizante (últimas 6 mensagens)
+        4. Envia contexto para API do Claude
+        5. Armazena resposta do assistente
+        6. Retorna resposta ao cliente
 
     Args:
-        request: Objeto contendo a mensagem do usuário
+        request: Objeto contendo a mensagem e session_id opcional
 
     Returns:
-        ChatResponse com resposta do Claude e tamanho do histórico
+        ChatResponse com resposta do Claude, tamanho do histórico e session_id
 
     Raises:
         HTTPException (500): Erro ao processar mensagem ou comunicar com API
     """
     try:
+        # Gerar ou usar session_id fornecido
+        session_id = request.session_id or str(uuid.uuid4())
+
+        # Inicializar sessão se não existir
+        if session_id not in sessions:
+            sessions[session_id] = {
+                "history": [],
+                "last_activity": datetime.now()
+            }
+
+        # Obter histórico da sessão
+        session_data = sessions[session_id]
+        conversation_history = session_data["history"]
+
+        # Atualizar timestamp da última atividade
+        session_data["last_activity"] = datetime.now()
+
         # Adicionar mensagem do usuário ao histórico
         conversation_history.append({
             "role": "user",
@@ -169,51 +195,147 @@ async def chat(request: ChatRequest):
         # Retornar resposta
         return ChatResponse(
             response=assistant_message,
-            history_size=len(conversation_history)
+            history_size=len(conversation_history),
+            session_id=session_id
         )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao processar mensagem: {str(e)}")
 
 
-@app.post("/clear")
-async def clear_history():
+class ClearRequest(BaseModel):
     """
-    Limpa todo o histórico de conversas da memória.
+    Modelo de dados para requisição de limpeza de histórico.
 
-    Remove todas as mensagens armazenadas, reiniciando a conversa.
+    Attributes:
+        session_id: ID da sessão a ser limpa
+    """
+    session_id: str
+
+
+@app.post("/clear")
+async def clear_history(request: ClearRequest):
+    """
+    Limpa o histórico de conversas de uma sessão específica.
+
+    Remove todas as mensagens armazenadas da sessão, reiniciando a conversa.
     Útil para começar uma nova sessão de chat.
+
+    Args:
+        request: Objeto contendo o session_id
 
     Returns:
         Dict com mensagem de confirmação
+
+    Raises:
+        HTTPException (404): Se a sessão não for encontrada
     """
-    global conversation_history
-    conversation_history = []
-    return {"message": "Histórico limpo com sucesso"}
+    if request.session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+
+    sessions[request.session_id]["history"] = []
+    sessions[request.session_id]["last_activity"] = datetime.now()
+
+    return {"message": "Histórico limpo com sucesso", "session_id": request.session_id}
 
 
-@app.get("/history")
-async def get_history():
+@app.get("/history/{session_id}")
+async def get_history(session_id: str):
     """
-    Retorna histórico completo de conversas.
+    Retorna histórico completo de conversas de uma sessão específica.
 
     Endpoint útil para debug e monitoramento do estado da conversa.
     Mostra todas as mensagens armazenadas, não apenas a janela deslizante.
 
+    Args:
+        session_id: ID da sessão a consultar
+
     Returns:
         Dict contendo:
-            - total_messages: Número total de mensagens
+            - session_id: ID da sessão consultada
+            - total_messages: Número total de mensagens da sessão
             - window_size: Tamanho da janela deslizante configurada
             - history: Lista completa de mensagens (user + assistant)
+            - last_activity: Timestamp da última atividade
+
+    Raises:
+        HTTPException (404): Se a sessão não for encontrada
 
     Note:
         Em produção, considere adicionar autenticação a este endpoint
         para proteger dados sensíveis da conversa.
     """
+    if session_id not in sessions:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+
+    session_data = sessions[session_id]
     return {
-        "total_messages": len(conversation_history),
+        "session_id": session_id,
+        "total_messages": len(session_data["history"]),
         "window_size": SLIDING_WINDOW_SIZE,
-        "history": conversation_history
+        "history": session_data["history"],
+        "last_activity": session_data["last_activity"].isoformat()
+    }
+
+
+@app.get("/sessions")
+async def list_sessions():
+    """
+    Lista todas as sessões ativas no servidor.
+
+    Retorna informações resumidas sobre cada sessão ativa,
+    incluindo número de mensagens e última atividade.
+
+    Returns:
+        Dict contendo:
+            - total_sessions: Número total de sessões ativas
+            - sessions: Lista de sessões com metadados
+
+    Note:
+        Este endpoint é útil para monitoramento e debug.
+        Em produção, adicione autenticação adequada.
+    """
+    sessions_info = []
+    for session_id, data in sessions.items():
+        sessions_info.append({
+            "session_id": session_id,
+            "total_messages": len(data["history"]),
+            "last_activity": data["last_activity"].isoformat()
+        })
+
+    return {
+        "total_sessions": len(sessions),
+        "sessions": sessions_info
+    }
+
+
+@app.post("/cleanup-sessions")
+async def cleanup_old_sessions(max_age_hours: int = 24):
+    """
+    Remove sessões inativas há mais de X horas.
+
+    Libera memória removendo sessões que não têm atividade recente.
+    Útil para manutenção automática do servidor.
+
+    Args:
+        max_age_hours: Idade máxima em horas (padrão: 24h)
+
+    Returns:
+        Dict com número de sessões removidas
+    """
+    cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
+    sessions_to_remove = [
+        session_id for session_id, data in sessions.items()
+        if data["last_activity"] < cutoff_time
+    ]
+
+    for session_id in sessions_to_remove:
+        del sessions[session_id]
+
+    return {
+        "message": f"Limpeza concluída",
+        "sessions_removed": len(sessions_to_remove),
+        "sessions_remaining": len(sessions)
     }
 
 

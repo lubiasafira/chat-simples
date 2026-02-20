@@ -12,17 +12,11 @@ API_URL = "http://localhost:8000"
 
 def test_complete_flow():
     """Testa o fluxo completo: envio de mensagem e recebimento de resposta."""
-    print("🧪 TESTE 1: Fluxo Completo de Mensagens")
+    print("🧪 TESTE 1: Fluxo Completo de Mensagens (com sessões)")
     print("-" * 50)
 
-    # Limpar histórico antes de começar
-    print("\n1. Limpando histórico...")
-    response = requests.post(f"{API_URL}/clear")
-    assert response.status_code == 200, f"Erro ao limpar histórico: {response.status_code}"
-    print("   ✅ Histórico limpo com sucesso")
-
-    # Enviar mensagem de teste
-    print("\n2. Enviando mensagem de teste...")
+    # Enviar mensagem de teste (cria sessão automaticamente)
+    print("\n1. Enviando mensagem de teste...")
     test_message = "Olá! Qual é o resultado de 2 + 2?"
 
     response = requests.post(
@@ -32,22 +26,25 @@ def test_complete_flow():
 
     assert response.status_code == 200, f"Erro ao enviar mensagem: {response.status_code}"
     data = response.json()
+    session_id = data.get("session_id")
 
     print(f"   📤 Mensagem enviada: {test_message}")
+    print(f"   🆔 Session ID: {session_id}")
     print(f"   📥 Resposta recebida: {data['response'][:100]}...")
     print(f"   📊 Tamanho do histórico: {data['history_size']} mensagens")
 
     # Validações
     assert "response" in data, "Resposta não contém campo 'response'"
     assert "history_size" in data, "Resposta não contém campo 'history_size'"
+    assert "session_id" in data, "Resposta não contém campo 'session_id'"
     assert len(data["response"]) > 0, "Resposta está vazia"
     assert data["history_size"] == 2, f"Histórico deveria ter 2 mensagens, mas tem {data['history_size']}"
 
     print("   ✅ Resposta validada com sucesso")
 
     # Verificar histórico
-    print("\n3. Verificando histórico completo...")
-    response = requests.get(f"{API_URL}/history")
+    print("\n2. Verificando histórico da sessão...")
+    response = requests.get(f"{API_URL}/history/{session_id}")
     assert response.status_code == 200
 
     history_data = response.json()
@@ -59,6 +56,17 @@ def test_complete_flow():
     assert history_data['history'][1]['role'] == 'assistant', "Segunda mensagem deveria ser do assistente"
 
     print("   ✅ Histórico validado com sucesso")
+
+    # Limpar histórico
+    print("\n3. Limpando histórico da sessão...")
+    response = requests.post(f"{API_URL}/clear", json={"session_id": session_id})
+    assert response.status_code == 200, f"Erro ao limpar histórico: {response.status_code}"
+    print("   ✅ Histórico limpo com sucesso")
+
+    # Verificar que foi limpo
+    response = requests.get(f"{API_URL}/history/{session_id}")
+    assert response.status_code == 200
+    assert response.json()['total_messages'] == 0, "Histórico deveria estar vazio"
 
     print("\n" + "="*50)
     print("✅ TESTE 1 PASSOU - Fluxo completo funcionando!")

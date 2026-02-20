@@ -11,17 +11,11 @@ API_URL = "http://localhost:8000"
 
 def test_sliding_window():
     """Testa se a janela deslizante está limitando corretamente o histórico."""
-    print("🧪 TESTE 2: Validação da Janela Deslizante")
+    print("🧪 TESTE 2: Validação da Janela Deslizante (com sessões)")
     print("-" * 50)
 
-    # Limpar histórico
-    print("\n1. Limpando histórico...")
-    response = requests.post(f"{API_URL}/clear")
-    assert response.status_code == 200
-    print("   ✅ Histórico limpo")
-
     # Enviar 5 turnos de conversa (10 mensagens no total)
-    print("\n2. Enviando 5 turnos de conversa...")
+    print("\n1. Enviando 5 turnos de conversa...")
     messages = [
         "Turno 1: Qual é a capital do Brasil?",
         "Turno 2: Qual é a capital da França?",
@@ -30,19 +24,26 @@ def test_sliding_window():
         "Turno 5: Qual é a capital de Portugal?",
     ]
 
+    session_id = None
     for i, message in enumerate(messages, 1):
         print(f"   Enviando turno {i}...")
-        response = requests.post(
-            f"{API_URL}/chat",
-            json={"message": message}
-        )
+        payload = {"message": message}
+        if session_id:
+            payload["session_id"] = session_id
+
+        response = requests.post(f"{API_URL}/chat", json=payload)
         assert response.status_code == 200
         data = response.json()
+
+        if not session_id:
+            session_id = data["session_id"]
+            print(f"   🆔 Session ID: {session_id}")
+
         print(f"   📊 Histórico agora tem {data['history_size']} mensagens")
 
     # Verificar histórico completo
-    print("\n3. Verificando histórico completo...")
-    response = requests.get(f"{API_URL}/history")
+    print("\n2. Verificando histórico completo...")
+    response = requests.get(f"{API_URL}/history/{session_id}")
     assert response.status_code == 200
 
     history_data = response.json()
@@ -61,7 +62,7 @@ def test_sliding_window():
     print("   ✅ Janela deslizante configurada para 6 mensagens (correto)")
 
     # Teste crítico: enviar mais uma mensagem e verificar o contexto
-    print("\n4. Testando limite da janela deslizante...")
+    print("\n3. Testando limite da janela deslizante...")
     print("   Enviando mensagem pedindo para listar capitais mencionadas...")
 
     # Esta mensagem deve receber apenas as últimas 6 mensagens como contexto
@@ -70,7 +71,7 @@ def test_sliding_window():
     test_message = "Liste todas as capitais que mencionei anteriormente"
     response = requests.post(
         f"{API_URL}/chat",
-        json={"message": test_message}
+        json={"message": test_message, "session_id": session_id}
     )
     assert response.status_code == 200
     data = response.json()
@@ -103,7 +104,7 @@ def test_sliding_window():
         print("   ⚠️  AVISO: Resposta menciona Brasília (pode ser que Claude tenha adivinhado ou a janela não está funcionando)")
 
     # Verificar tamanho final do histórico
-    response = requests.get(f"{API_URL}/history")
+    response = requests.get(f"{API_URL}/history/{session_id}")
     final_history = response.json()
     print(f"\n   📜 Total final de mensagens: {final_history['total_messages']}")
 
