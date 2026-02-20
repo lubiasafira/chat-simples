@@ -26,7 +26,7 @@ function setupEventListeners() {
     sendBtn.addEventListener('click', handleSendMessage);
     clearBtn.addEventListener('click', handleClearChat);
 
-    messageInput.addEventListener('keypress', (e) => {
+    messageInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             handleSendMessage();
@@ -36,26 +36,41 @@ function setupEventListeners() {
     messageInput.addEventListener('input', () => {
         updateCharCounter();
         autoResizeTextarea();
+        updateSendButtonState();
     });
+
+    // Initial setup
+    updateSendButtonState();
+}
+
+function updateSendButtonState() {
+    const message = messageInput.value.trim();
+    if (message.length === 0 || isProcessing) {
+        sendBtn.disabled = true;
+    } else {
+        sendBtn.disabled = false;
+    }
 }
 
 // Auto-resize do textarea
 function autoResizeTextarea() {
-    messageInput.style.height = 'auto';
-    messageInput.style.height = messageInput.scrollHeight + 'px';
+    messageInput.style.height = 'auto'; // Reset to auto to auto-compute
+    let newHeight = messageInput.scrollHeight;
+    if (newHeight > 150) newHeight = 150; // Max height
+    messageInput.style.height = newHeight + 'px';
 }
 
 // Atualizar contador de caracteres
 function updateCharCounter() {
     const count = messageInput.value.length;
-    charCount.textContent = count;
+    charCount.textContent = `${count}/2000`;
 
-    if (count > 1800) {
-        charCount.style.color = '#ff4444';
+    if (count > 1900) {
+        charCount.style.color = 'var(--danger)';
     } else if (count > 1500) {
-        charCount.style.color = '#ff9800';
+        charCount.style.color = '#f59e0b'; // warning
     } else {
-        charCount.style.color = '#6c757d';
+        charCount.style.color = 'var(--text-secondary)';
     }
 }
 
@@ -66,20 +81,27 @@ async function handleSendMessage() {
     if (!message || isProcessing) return;
 
     if (message.length > 2000) {
-        showError('Mensagem muito longa! Máximo de 2000 caracteres.');
+        showError('Mensagem muito longa! O máximo é de 2000 caracteres.');
         return;
     }
 
     isProcessing = true;
-    sendBtn.disabled = true;
+    updateSendButtonState();
+
+    // Remover welcome message animada
+    const welcomeMsg = document.querySelector('.welcome-message');
+    if (welcomeMsg) {
+        welcomeMsg.style.display = 'none';
+    }
 
     // Adicionar mensagem do usuário
     addMessage(message, 'user');
 
     // Limpar input
     messageInput.value = '';
-    messageInput.style.height = 'auto';
+    messageInput.style.height = 'auto'; // reset height
     updateCharCounter();
+    updateSendButtonState();
 
     // Mostrar indicador de digitação
     const typingIndicator = showTypingIndicator();
@@ -109,21 +131,56 @@ async function handleSendMessage() {
             localStorage.setItem('chat_session_id', sessionId);
         }
 
-        // Remover indicador de digitação
-        typingIndicator.remove();
-
-        // Adicionar resposta do assistente
-        addMessage(data.response, 'assistant');
+        // Remover indicador de digitação com fade out suave
+        typingIndicator.style.opacity = '0';
+        setTimeout(() => {
+            typingIndicator.remove();
+            // Adicionar resposta do assistente
+            addMessage(data.response, 'assistant');
+        }, 300);
 
     } catch (error) {
         console.error('Erro:', error);
         typingIndicator.remove();
-        showError(error.message || 'Erro ao se comunicar com o servidor. Verifique se o backend está rodando.');
+        showError(error.message || 'Erro de conexão com o servidor.');
     } finally {
         isProcessing = false;
-        sendBtn.disabled = false;
+        updateSendButtonState();
         messageInput.focus();
     }
+}
+
+// Configuração do Marked (Markdown Parser)
+if (typeof marked !== 'undefined') {
+    marked.setOptions({
+        breaks: true, // converte quebras de linha normais em <br>
+        gfm: true, // GitHub Flavored Markdown
+        sanitize: false // Importante definir sanitização extra se os dados não vêm de fonte confiável. A anthropic é segura.
+    });
+}
+
+// Formatação básica e Markdown
+function formatMessage(text) {
+    if (typeof marked !== 'undefined') {
+        return marked.parse(text);
+    }
+
+    // Fallback caso a biblioteca falhe
+    let escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    // Tratamento de blocos de código
+    escaped = escaped.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    // Código inline
+    escaped = escaped.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Negrito
+    escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+    return escaped;
 }
 
 // Adicionar mensagem ao chat
@@ -133,25 +190,36 @@ function addMessage(text, role) {
 
     const bubbleDiv = document.createElement('div');
     bubbleDiv.className = 'message-bubble';
-    bubbleDiv.textContent = text;
+
+    if (role === 'assistant') {
+        bubbleDiv.innerHTML = formatMessage(text);
+    } else {
+        bubbleDiv.textContent = text;
+    }
 
     messageDiv.appendChild(bubbleDiv);
     messagesContainer.appendChild(messageDiv);
 
-    scrollToBottom();
+    // Permitir o frame para a animação ocorrer e então scrollToBottom
+    requestAnimationFrame(() => scrollToBottom());
 }
 
-// Mostrar indicador de digitação
+// Mostrar indicador de digitação premium
 function showTypingIndicator() {
     const messageDiv = document.createElement('div');
     messageDiv.className = 'message assistant';
     messageDiv.id = 'typing-indicator';
+    messageDiv.style.transition = 'opacity 0.3s ease';
 
-    const typingDiv = document.createElement('div');
-    typingDiv.className = 'typing-indicator';
-    typingDiv.innerHTML = '<span></span><span></span><span></span>';
+    const bubbleDiv = document.createElement('div');
+    bubbleDiv.className = 'message-bubble';
 
-    messageDiv.appendChild(typingDiv);
+    const typingContainer = document.createElement('div');
+    typingContainer.className = 'typing-indicator-container';
+    typingContainer.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+
+    bubbleDiv.appendChild(typingContainer);
+    messageDiv.appendChild(bubbleDiv);
     messagesContainer.appendChild(messageDiv);
 
     scrollToBottom();
@@ -163,30 +231,38 @@ function showTypingIndicator() {
 function showError(message) {
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error-message';
-    errorDiv.textContent = '⚠️ ' + message;
+    errorDiv.innerHTML = `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        ${message}
+    `;
 
     messagesContainer.appendChild(errorDiv);
     scrollToBottom();
 
+    // Auto-remover logo
     setTimeout(() => {
-        errorDiv.remove();
+        errorDiv.style.opacity = '0';
+        errorDiv.style.transition = 'opacity 0.5s ease';
+        setTimeout(() => errorDiv.remove(), 500);
     }, 5000);
 }
 
 // Limpar chat
 async function handleClearChat() {
-    if (!confirm('Tem certeza que deseja limpar toda a conversa?')) {
+    if (!confirm('Deseja realmente apagar o histórico desta conversa?')) {
         return;
     }
 
+    clearBtn.style.opacity = '0.5';
+    clearBtn.style.pointerEvents = 'none';
+
     try {
-        // Se não houver session_id, apenas limpar a interface
         if (!sessionId) {
-            messagesContainer.innerHTML = `
-                <div class="welcome-message">
-                    <p>👋 Olá! Sou o Claude. Como posso ajudar você hoje?</p>
-                </div>
-            `;
+            setupEmptyChatUI();
             return;
         }
 
@@ -199,27 +275,48 @@ async function handleClearChat() {
         });
 
         if (!response.ok) {
-            throw new Error('Erro ao limpar histórico');
+            throw new Error('Falha ao limpar histórico');
         }
 
-        // Gerar novo session_id para começar uma nova conversa
         sessionId = null;
         localStorage.removeItem('chat_session_id');
 
-        // Limpar interface
-        messagesContainer.innerHTML = `
-            <div class="welcome-message">
-                <p>👋 Olá! Sou o Claude. Como posso ajudar você hoje?</p>
-            </div>
-        `;
+        setupEmptyChatUI();
 
     } catch (error) {
         console.error('Erro:', error);
-        showError('Erro ao limpar conversa');
+        showError('Erro ao limpar a conversa pelo servidor.');
+    } finally {
+        clearBtn.style.opacity = '1';
+        clearBtn.style.pointerEvents = 'auto';
     }
 }
 
-// Scroll automático para o final
+function setupEmptyChatUI() {
+    // Animate out all messages
+    const currentMessages = Array.from(messagesContainer.querySelectorAll('.message, .error-message'));
+    currentMessages.forEach(msg => {
+        msg.style.opacity = '0';
+        msg.style.transform = 'translateY(-10px)';
+        msg.style.transition = 'all 0.3s ease';
+    });
+
+    setTimeout(() => {
+        messagesContainer.innerHTML = `
+            <div class="welcome-message" style="animation: fadeIn 0.5s ease-out;">
+                <div class="welcome-icon">✨</div>
+                <h2>Nova Conversa</h2>
+                <p>O histórico anterior foi deletado. Como posso ajudar agora?</p>
+            </div>
+        `;
+    }, 350);
+}
+
+// Scroll suave para o final
 function scrollToBottom() {
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    // Adiciona uma margem inferior para não ficar colado no bottom
+    messagesContainer.scrollTo({
+        top: messagesContainer.scrollHeight,
+        behavior: 'smooth'
+    });
 }

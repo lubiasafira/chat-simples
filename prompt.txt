@@ -205,3 +205,23 @@ Altere o janela deslizante para 10 turnos.
 O projeto @plan.md é um chat simples em html css js que utiliza api da claude que utiliza janela deslizante como persitência da conversa. atualmente a janela deslizante é de 6 turnos.
 
 Não altere qualquer outro comportamento do projeto.
+
+
+Você é um programador sênior python com expecialidade refatoração de código.
+
+Implemente limitação de usuário simultaneos para apenas 4.
+
+O projeto @plan.md é um chat simples em html css js que utiliza api da claude que utiliza janela deslizante como persitência da conversa. Atualmente o projeto não coloca limites no números de seções simultaneas.
+
+Ao atingir o limite de usuário. a api deve responder como "Limite de usuários atingido. Tente novamente mais tarde." e não deve chamar a api da claude até que uma nova sessão seja liberada.
+O sessão deve ser liberada após 5 minutos de inatividade.
+
+Prompt
+
+Você é um Front-end Developer com foco em UX
+
+Reimplemente em frontend/index.html um chat simples com HTML/CSS/JS que faz o consumo da api backend/main.py.
+
+o projeto em @plan.md é um implementação de um chat simples em HTML/CSS/JS com backend FastAPI utilizando a API claude.
+
+Não altere o comportamento da comunição entre a frontend e FastAPI
