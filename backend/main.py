@@ -2,7 +2,7 @@
 Backend FastAPI para chat com Claude AI usando janela deslizante.
 
 Este módulo implementa uma API REST que permite conversar com Claude
-mantendo apenas as últimas 6 mensagens no contexto (janela deslizante).
+mantendo apenas as últimas 20 mensagens no contexto (janela deslizante).
 Isso otimiza o uso de tokens e mantém a conversa focada.
 """
 
@@ -25,7 +25,7 @@ load_dotenv()
 # Configurações
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 MAX_MESSAGE_LENGTH = 2000
-SLIDING_WINDOW_SIZE = 6  # 6 mensagens = 3 turnos (user + assistant)
+SLIDING_WINDOW_SIZE = 20  # 20 mensagens = 10 turnos (user + assistant)
 
 # Rate limiting - limitação de requisições à API
 RATE_LIMIT_MAX_REQUESTS = 10  # Máximo de requisições por janela de tempo
@@ -172,8 +172,8 @@ async def chat(request: ChatRequest):
     """
     Processa mensagem do usuário e retorna resposta do Claude.
 
-    Implementa janela deslizante: mantém apenas as últimas 6 mensagens
-    (3 turnos de conversa) no contexto enviado para a API do Claude.
+    Implementa janela deslizante: mantém apenas as últimas 20 mensagens
+    (10 turnos de conversa) no contexto enviado para a API do Claude.
     Cada usuário tem sua própria sessão isolada.
 
     Fluxo:

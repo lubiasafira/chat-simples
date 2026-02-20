@@ -195,6 +195,7 @@ O projeto @plan.md é um chat simples em html css js que utiliza api da claude. 
 Não altere qualquer outro comportamento do projeto.
 
 
+prompt
 
 
 Você é um programador sênior python com expecialidade refatoração de código.

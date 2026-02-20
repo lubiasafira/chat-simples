@@ -52,7 +52,7 @@ python-dotenv
 
 ### Fase 2: Backend (FastAPI)
 1. Configurar main.py básico (FastAPI + CORS)
-    1. Definir: janela deslizante = últimas 6 mensagens 3 turnos
+    1. Definir: janela deslizante = últimas 20 mensagens 10 turnos
     2. Definir: tamanho máximo por mensagem = 2000 caracteres
 2. Carregar variáveis de ambiente (.env)
 3. Criar endpoint POST /chat
@@ -96,7 +96,7 @@ uvicorn backend.main:app --reload
 - [x] Carregar variáveis de ambiente (.env)
 - [x] Criar endpoint POST /chat
 - [x] Implementar janela deslizante (histórico limitado a N mensagens)
-    - [x] Definir: janela deslizante = últimas 6 mensagens 3 turnos
+    - [x] Definir: janela deslizante = últimas 20 mensagens 10 turnos
     - [x] Definir: tamanho máximo por mensagem = 2000 caracteres
 - [x] Integrar com Claude API
 - [x] Rodar servidor
@@ -124,7 +124,7 @@ uvicorn backend.main:app --reload
 - [x] Troca o modulo LLM para Haiku
 - [x] Criar sessões para cada usuário
 - [ ] limitar requisão a api
-- [ ] aumentar a quandidade da janela deslizante para 10 turnos
+- [x] aumentar a quandidade da janela deslizante para 10 turnos
 
 ## Fase 6: melhorias no frontend
 - [ ] implemente nova frontend utilizando gemini 3.1
