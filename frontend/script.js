@@ -1,5 +1,6 @@
 // Configuração da API
-const API_URL = 'http://localhost:8000';
+// Usa URL relativa para funcionar tanto localmente quanto em produção
+const API_URL = window.location.origin;
 
 // Elementos do DOM
 const messagesContainer = document.getElementById('messages');
