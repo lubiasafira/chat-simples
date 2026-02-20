@@ -1,0 +1,143 @@
+prompt 1
+Você é um engenheiro de software com expecialidade em arquitetura de sistemas.
+
+Análise o Planejamento de @plan.md e escreve ponto a ser melhorados.
+
+@plan.md é um Planejamento para um projeto de chat simples para conversar com uma api claude.
+
+Use palavras simples. Sem jargões técnicos. No  final de sugestões de como ele pode ser reajustado.
+
+
+
+prompt 2
+Você é um engenheiro de software com especialidade em arquitetura de sistemas.
+
+Preciso definir tarefas para fase 0 do projeto @plan.md.
+
+A Fase 0 é a preparação antes de codar: criar conta na Anthropic e gerar a API key para autenticação, escolher qual modelo usar (como Sonnet), testar uma chamada simples para validar que tudo funciona, e definir as regras do chat — janela deslizante de 6 mensagens (3 turnos de conversa) para controlar o contexto enviado à API, e limite de 2000 caracteres por mensagem para evitar custos excessivos.
+
+De sujestões no chat tarefas para a execução da fase 0 do projeto @plan.md. liste em ordem de execução. simples e breve.
+
+
+prompt 3
+Você é um programador senior com experiência python
+
+Crie script de teste (test_api.py) com chamada simples à API(claude-sonnet-4-5)
+Instale somente as depêndecias necessárias:
+anthropic
+python-dotenv
+
+test_api.py deve ser um script em python que faz um requisição simples contra a api. O modelo a ser utilizado é (claude-sonnet-4-5). A chave de API está no arquivo .env.
+
+Apenas crie test_api e arquivo de depêndecias necessárias. Não altere nenhum outro arquivo além destes.
+
+
+prompt 4
+Você é um engenheiro de software com especialidade em arquitetura de sistemas.
+
+Construi a seguinte estrutura de pastas:
+TREINAMENTO_PROMPT_AVANCADO_JEDAI/
+├── backend/
+│   └── main.py
+├── frontend/
+│   ├── index.html
+│   ├── style.css
+│   └── script.js
+├── .env
+└── requirements.txt
+
+No arquivo @plan.md contém o planejamento para um projeto de chat simples para conversar com uma API claude.
+
+Crie as paste e arquivo, não implemente nada dentro dos arquivos. somente as estruturas.
+
+
+prompt 5
+
+Você é um programador senior com experiência python.
+
+Analise o planejamento de @plan.md as depêndecias necessárias e instaladas atualmente, quais são importantes e quais são desnecessárias.
+
+@plan.md é um planejamento para um projeto de chat simples para conversar com uma API claude.
+
+Escreva no chat a Analise sobre as depêndecias.
+
+
+prompt 6
+
+Você é um programador senior com experiência python.
+
+implemente `backend/main.py` com FastAPI + CORS. 
+
+`backend/main.py` é um modulo que implementa um servidor FastAPI com CORS habilitado consumido uma api claude. @plan.md contém o planejamento e estado atual das tarefas.
+
+altere somente `backend/main.py` não implemente nada além disso.
+
+
+
+prompt 7
+
+Você é um programador senior com experiência python.
+
+Implemente `tests/main_test.py` para garantir o comportamento atual de backend/main.py.
+
+O projeto @plan.md é um implementação de um chat simples em HTML/CSS/JS com backend FastAPI utilizando a API claude.
+
+Implemente somente `tests/main_test.py`. Caso haja mais ajustes em demais arquivos faça sugestão.
+
+
+Prompt 8
+
+Você é um Front-end Developer com foco em UX
+
+Implemente em frontend/index.html um chat simples com HTML/CSS/JS que faça o consumo da api backend/main.py.
+
+o projeto em @plan.md é um implementação de um chat simples  em HTML/CSS/JS com backend FastAPI utilizando a API claude.
+
+Coloque um campo para inserir o texto e um mini botão para enviar a mensagem.
+
+
+prompt 9
+Você é um programador Python sênior especializado em code review, com foco em boas práticas, legibilidade, performance e segurança.
+Seu objetivo é realizar uma revisão completa do arquivo backend/main.py, identificando pontos de melhoria, inconsistências, riscos e boas práticas já aplicadas.
+O arquivo backend/main.py é a implementação principal do projeto descrito em @plan.md. Considere o contexto do plano ao avaliar se as decisões de código estão alinhadas com os requisitos e arquitetura esperados.
+Estruture sua análise em formato de lista, organizada nas seguintes categorias:
+
+Visão geral: explique brevemente o que o arquivo faz
+Boas práticas aplicadas: o que está bem feito
+Pontos de melhoria: problemas de legibilidade, organização ou padrões Python
+Riscos de segurança: vulnerabilidades ou más práticas de segurança
+Performance: gargalos ou otimizações possíveis
+Alinhamento com o plano: o código cobre o que foi planejado em @plan.md? Há divergências?
+
+
+prompt 10
+
+Você é um desenvolvedor Python sênior especializado em FastAPI e integração com APIs de LLMs.
+Seu objetivo é implementar, testar e finalizar as funcionalidades pendentes do projeto, cumprindo cada tarefa do checklist abaixo de forma sequencial.
+O projeto @plan é uma aplicação de chat com backend em FastAPI. O frontend já existe e precisa ser servido como arquivos estáticos. A aplicação se comunica com uma API de LLM e mantém um histórico de mensagens com janela deslizante. O arquivo principal do backend é backend/main.py.
+Execute cada tarefa na ordem listada, sinalizando com [x] ao concluir:
+
+Servir o frontend via FastAPI: configure StaticFiles para servir os arquivos do frontend a partir do diretório correto
+Testar o fluxo completo: envie uma mensagem e valide se a resposta da API é recebida e exibida corretamente
+Validar a janela deslizante: confirme que o histórico de mensagens está sendo limitado corretamente, mantendo apenas as últimas N mensagens
+Testar cenários de erro: valide o comportamento da aplicação nos seguintes casos: API key inválida, servidor offline e mensagem vazia
+Ajustes finais: corrija os bugs encontrados nos testes anteriores e melhore o feedback visual ou textual ao usuário
+
+Para cada tarefa, mostre o código implementado ou alterado e explique brevemente o que foi feito.
+
+prompt
+
+Você é um arquiteto de software sênior com experiência em projetos web, APIs e boas práticas de organização de código.
+Analise a arquitetura do projeto e listar todos os problemas encontrados, classificados por severidade.
+O projeto é uma aplicação web composta por um frontend em HTML/CSS/JS que consome uma API via FastAPI em Python. O arquivo principal do backend é backend/main.py e o plano do projeto está descrito em @plan.md.
+
+Mostro os problemas de arquiteto em ordem de servidade. Cada item da lista deve ter máximo duas linhas. Não crie tabela e não altere nenhum arquivo.
+
+prompt 
+
+Você é um programador sênior python.
+
+Analise meu projeto liste o que falta para fazer deploy no railway free, ignore os problema de segurança .
+O projeto @plan.md  é um chat simples em html css js que utiliza api da anthopic. é uma atividada para um treinamento sobre janela deslizante.
+
+A lista deve ser númerada, sem tabelas, sem alterar nenhum arquivo
