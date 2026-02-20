@@ -123,8 +123,10 @@ uvicorn backend.main:app --reload
     - [ ] CORS totalmente aberto
 - [x] Troca o modulo LLM para Haiku
 - [x] Criar sessões para cada usuário
-- [ ] limitar requisão a api
+- [x] limitar requisão a api
 - [x] aumentar a quandidade da janela deslizante para 10 turnos
+- [x] limitar número de sessões de usuário para 4 simultâneas.
+- [x] escrever testes para limite de sessões simultâneas (TestSessionLimit - 9 testes)
 
 ## Fase 6: melhorias no frontend
 - [ ] implemente nova frontend utilizando gemini 3.1

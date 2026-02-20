@@ -31,6 +31,10 @@ SLIDING_WINDOW_SIZE = 20  # 20 mensagens = 10 turnos (user + assistant)
 RATE_LIMIT_MAX_REQUESTS = 10  # Máximo de requisições por janela de tempo
 RATE_LIMIT_WINDOW_SECONDS = 60  # Janela de tempo em segundos (1 minuto)
 
+# Limite de sessões simultâneas
+MAX_CONCURRENT_SESSIONS = 4
+SESSION_INACTIVITY_TIMEOUT_MINUTES = 5
+
 # Inicializar FastAPI
 app = FastAPI(title="Chat com Janela Deslizante")
 
@@ -102,6 +106,28 @@ def check_rate_limit(session_id: str) -> bool:
     # Registrar nova requisição
     rate_limit_tracker[session_id].append(now)
     return True
+
+
+def cleanup_inactive_sessions() -> int:
+    """
+    Remove sessões inativas há mais de SESSION_INACTIVITY_TIMEOUT_MINUTES minutos.
+
+    Chamada automaticamente antes de criar novas sessões para liberar vagas
+    ocupadas por usuários que abandonaram a conversa sem encerrar a sessão.
+
+    Returns:
+        Número de sessões removidas
+    """
+    cutoff_time = datetime.now() - timedelta(minutes=SESSION_INACTIVITY_TIMEOUT_MINUTES)
+    sessions_to_remove = [
+        session_id for session_id, data in sessions.items()
+        if data["last_activity"] < cutoff_time
+    ]
+    for session_id in sessions_to_remove:
+        del sessions[session_id]
+        if session_id in rate_limit_tracker:
+            del rate_limit_tracker[session_id]
+    return len(sessions_to_remove)
 
 
 class ChatRequest(BaseModel):
@@ -206,6 +232,16 @@ async def chat(request: ChatRequest):
 
         # Inicializar sessão se não existir
         if session_id not in sessions:
+            # Liberar sessões inativas antes de verificar o limite
+            cleanup_inactive_sessions()
+
+            # Bloquear nova sessão se limite de simultâneas foi atingido
+            if len(sessions) >= MAX_CONCURRENT_SESSIONS:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Limite de usuários atingido. Tente novamente mais tarde."
+                )
+
             sessions[session_id] = {
                 "history": [],
                 "last_activity": datetime.now()
@@ -364,34 +400,20 @@ async def list_sessions():
 
 
 @app.post("/cleanup-sessions")
-async def cleanup_old_sessions(max_age_hours: int = 24):
+async def cleanup_old_sessions():
     """
-    Remove sessões inativas há mais de X horas.
+    Remove sessões inativas há mais de SESSION_INACTIVITY_TIMEOUT_MINUTES minutos.
 
-    Libera memória removendo sessões que não têm atividade recente.
-    Útil para manutenção automática do servidor.
-
-    Args:
-        max_age_hours: Idade máxima em horas (padrão: 24h)
+    Libera memória removendo sessões sem atividade recente e abre vagas
+    para novos usuários quando o limite de sessões simultâneas é atingido.
 
     Returns:
-        Dict com número de sessões removidas
+        Dict com número de sessões removidas e restantes
     """
-    cutoff_time = datetime.now() - timedelta(hours=max_age_hours)
-    sessions_to_remove = [
-        session_id for session_id, data in sessions.items()
-        if data["last_activity"] < cutoff_time
-    ]
-
-    for session_id in sessions_to_remove:
-        del sessions[session_id]
-        # Limpar também o rastreamento de rate limit
-        if session_id in rate_limit_tracker:
-            del rate_limit_tracker[session_id]
-
+    removed = cleanup_inactive_sessions()
     return {
-        "message": f"Limpeza concluída",
-        "sessions_removed": len(sessions_to_remove),
+        "message": "Limpeza concluída",
+        "sessions_removed": removed,
         "sessions_remaining": len(sessions)
     }
 

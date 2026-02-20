@@ -10,12 +10,20 @@ from fastapi.testclient import TestClient
 from unittest.mock import Mock, patch, MagicMock
 import sys
 import os
+import uuid
+from datetime import datetime, timedelta
 
 # Adicionar o diretório pai ao path para importar o módulo backend
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import backend.main as main_module
-from backend.main import app, SLIDING_WINDOW_SIZE, MAX_MESSAGE_LENGTH
+from backend.main import (
+    app,
+    SLIDING_WINDOW_SIZE,
+    MAX_MESSAGE_LENGTH,
+    MAX_CONCURRENT_SESSIONS,
+    SESSION_INACTIVITY_TIMEOUT_MINUTES,
+)
 
 
 # Session ID fixo para testes
@@ -159,29 +167,27 @@ class TestChatEndpoint:
 
     @patch('backend.main.client')
     def test_chat_sliding_window_applies_correctly(self, mock_client, client, mock_anthropic_client):
-        """Testa que a janela deslizante mantém apenas as últimas 6 mensagens."""
+        """Testa que a janela deslizante limita o envio ao máximo de SLIDING_WINDOW_SIZE mensagens."""
         mock_client.messages.create = mock_anthropic_client.messages.create
 
-        # Enviar 5 mensagens (cada uma adiciona 2: user + assistant = 10 no total)
-        for i in range(5):
-            client.post("/chat", json={"message": f"Mensagem {i+1}", "session_id": TEST_SESSION_ID})
+        # Pré-popular histórico com SLIDING_WINDOW_SIZE mensagens (10 turnos completos)
+        # sem passar pelo endpoint, evitando interferência do rate limit
+        history = []
+        for i in range(SLIDING_WINDOW_SIZE // 2):
+            history.append({"role": "user", "content": f"Mensagem {i+1}"})
+            history.append({"role": "assistant", "content": f"Resposta {i+1}"})
+        main_module.sessions[TEST_SESSION_ID] = {"history": history, "last_activity": datetime.now()}
+        assert len(main_module.sessions[TEST_SESSION_ID]["history"]) == SLIDING_WINDOW_SIZE
 
-        # Verificar que temos 10 mensagens no histórico
-        history = main_module.sessions[TEST_SESSION_ID]["history"]
-        assert len(history) == 10
+        # Enviar a próxima mensagem via endpoint — deve acionar a janela (21 > 20)
+        response = client.post("/chat", json={"message": "Mensagem 11", "session_id": TEST_SESSION_ID})
+        assert response.status_code == 200
 
-        # Fazer mais uma requisição e verificar que apenas as últimas 6 são enviadas
-        response = client.post("/chat", json={"message": "Mensagem 6", "session_id": TEST_SESSION_ID})
+        # Histórico deve ter SLIDING_WINDOW_SIZE + 2 entradas (user + assistant adicionados)
+        assert len(main_module.sessions[TEST_SESSION_ID]["history"]) == SLIDING_WINDOW_SIZE + 2
 
-        # Verificar que o histórico completo tem 12 mensagens
-        history = main_module.sessions[TEST_SESSION_ID]["history"]
-        assert len(history) == 12
-
-        # Verificar que apenas as últimas 6 mensagens foram enviadas para a API
-        # (a janela deslizante deve ter pegado as últimas 6 antes de adicionar a nova)
-        call_args = mock_client.messages.create.call_args
-        messages_sent = call_args.kwargs['messages']
-
+        # Apenas SLIDING_WINDOW_SIZE mensagens foram enviadas à API (janela aplicada como slice)
+        messages_sent = mock_client.messages.create.call_args.kwargs['messages']
         assert len(messages_sent) == SLIDING_WINDOW_SIZE
 
     @patch('backend.main.client')
@@ -306,49 +312,53 @@ class TestSlidingWindowBehavior:
     """Testes específicos para o comportamento da janela deslizante"""
 
     @patch('backend.main.client')
-    def test_sliding_window_with_exactly_6_messages(self, mock_client, client, mock_anthropic_client):
-        """Testa comportamento quando histórico tem exatamente 6 mensagens."""
+    def test_sliding_window_with_exactly_window_size_messages(self, mock_client, client, mock_anthropic_client):
+        """Testa comportamento quando histórico tem exatamente SLIDING_WINDOW_SIZE mensagens."""
         mock_client.messages.create = mock_anthropic_client.messages.create
 
-        # Adicionar 3 turnos (6 mensagens)
-        for i in range(3):
-            client.post("/chat", json={"message": f"Mensagem {i+1}", "session_id": TEST_SESSION_ID})
-
-        history = main_module.sessions[TEST_SESSION_ID]["history"]
-        assert len(history) == 6
-
-        # Próxima mensagem deve usar janela deslizante
-        client.post("/chat", json={"message": "Mensagem 4", "session_id": TEST_SESSION_ID})
-
-        call_args = mock_client.messages.create.call_args
-        messages_sent = call_args.kwargs['messages']
-
-        # Deve enviar as últimas 6 do histórico de 6 (todas elas)
-        assert len(messages_sent) == 6
-
-    @patch('backend.main.client')
-    def test_sliding_window_discards_old_messages(self, mock_client, client, mock_anthropic_client):
-        """Testa que janela deslizante descarta mensagens antigas."""
-        mock_client.messages.create = mock_anthropic_client.messages.create
-
-        # Adicionar muitas mensagens
+        # Adicionar 10 turnos (20 mensagens = exatamente SLIDING_WINDOW_SIZE)
         for i in range(10):
             client.post("/chat", json={"message": f"Mensagem {i+1}", "session_id": TEST_SESSION_ID})
 
-        # Histórico deve ter todas as 20 mensagens
         history = main_module.sessions[TEST_SESSION_ID]["history"]
-        assert len(history) == 20
+        assert len(history) == SLIDING_WINDOW_SIZE
 
-        # Mas apenas as últimas 6 devem ser enviadas
+        # Próxima mensagem deve acionar a janela deslizante (21 > 20)
+        client.post("/chat", json={"message": "Mensagem 11", "session_id": TEST_SESSION_ID})
+
         call_args = mock_client.messages.create.call_args
         messages_sent = call_args.kwargs['messages']
 
+        # Deve enviar exatamente SLIDING_WINDOW_SIZE mensagens
         assert len(messages_sent) == SLIDING_WINDOW_SIZE
 
-        # Verificar que são as mensagens mais recentes
-        # A última mensagem do usuário na janela deve ser "Mensagem 10"
-        # (pois ela é adicionada ao histórico antes da janela deslizante ser aplicada)
-        assert messages_sent[-1]["content"] == "Mensagem 10"
+    @patch('backend.main.client')
+    def test_sliding_window_discards_old_messages(self, mock_client, client, mock_anthropic_client):
+        """Testa que janela deslizante descarta mensagens antigas quando histórico excede o limite."""
+        mock_client.messages.create = mock_anthropic_client.messages.create
+
+        # Pré-popular com SLIDING_WINDOW_SIZE + 2 mensagens (11 turnos = 22 entradas)
+        # sem passar pelo endpoint, evitando interferência do rate limit
+        history = []
+        for i in range(SLIDING_WINDOW_SIZE // 2 + 1):
+            history.append({"role": "user", "content": f"Mensagem {i+1}"})
+            history.append({"role": "assistant", "content": f"Resposta {i+1}"})
+        main_module.sessions[TEST_SESSION_ID] = {"history": history, "last_activity": datetime.now()}
+        assert len(main_module.sessions[TEST_SESSION_ID]["history"]) == SLIDING_WINDOW_SIZE + 2
+
+        # Enviar mais uma mensagem via endpoint — janela obrigatoriamente aplicada (23 > 20)
+        response = client.post("/chat", json={"message": "Mensagem nova", "session_id": TEST_SESSION_ID})
+        assert response.status_code == 200
+
+        # Histórico completo cresce normalmente
+        assert len(main_module.sessions[TEST_SESSION_ID]["history"]) == SLIDING_WINDOW_SIZE + 4
+
+        # Apenas SLIDING_WINDOW_SIZE mensagens foram enviadas à API (janela aplicada como slice)
+        messages_sent = mock_client.messages.create.call_args.kwargs['messages']
+        assert len(messages_sent) == SLIDING_WINDOW_SIZE
+
+        # A última mensagem na janela é a última enviada pelo usuário
+        assert messages_sent[-1]["content"] == "Mensagem nova"
 
 
 class TestRateLimiting:
@@ -457,3 +467,105 @@ class TestIntegration:
         # 5. Verificar que histórico está vazio
         final_history = client.get(f"/history/{TEST_SESSION_ID}")
         assert final_history.json()["total_messages"] == 0
+
+
+class TestSessionLimit:
+    """Testes para limitação de sessões simultâneas (máx. 4) com expiração por inatividade."""
+
+    def _add_session(self, session_id: str = None, minutes_inactive: int = 0) -> str:
+        """Helper: injeta uma sessão diretamente no estado do servidor."""
+        sid = session_id or str(uuid.uuid4())
+        main_module.sessions[sid] = {
+            "history": [],
+            "last_activity": datetime.now() - timedelta(minutes=minutes_inactive),
+        }
+        return sid
+
+    def test_blocks_fifth_session(self, client):
+        """5ª sessão nova deve ser bloqueada com HTTP 503."""
+        for _ in range(MAX_CONCURRENT_SESSIONS):
+            self._add_session()
+
+        response = client.post("/chat", json={"message": "oi"})
+
+        assert response.status_code == 503
+
+    def test_error_message_at_limit(self, client):
+        """Mensagem de erro ao atingir o limite deve corresponder ao texto especificado."""
+        for _ in range(MAX_CONCURRENT_SESSIONS):
+            self._add_session()
+
+        response = client.post("/chat", json={"message": "oi"})
+        detail = response.json()["detail"]
+
+        assert "Limite de usuários atingido" in detail
+        assert "Tente novamente mais tarde" in detail
+
+    def test_claude_api_not_called_when_limit_reached(self, client):
+        """API Claude não deve ser chamada quando o limite de sessões é atingido."""
+        for _ in range(MAX_CONCURRENT_SESSIONS):
+            self._add_session()
+
+        with patch("backend.main.client") as mock_client:
+            client.post("/chat", json={"message": "oi"})
+            mock_client.messages.create.assert_not_called()
+
+    def test_existing_session_allowed_when_at_limit(self, client, mock_anthropic_client):
+        """Sessão já existente deve continuar funcionando mesmo com o limite atingido."""
+        existing_sid = self._add_session()
+        for _ in range(MAX_CONCURRENT_SESSIONS - 1):
+            self._add_session()
+
+        with patch("backend.main.client") as mock_client:
+            mock_client.messages.create = mock_anthropic_client.messages.create
+            response = client.post(
+                "/chat",
+                json={"message": "continuo aqui", "session_id": existing_sid},
+            )
+
+        assert response.status_code == 200
+
+    def test_inactive_session_releases_slot(self, client, mock_anthropic_client):
+        """Sessão inativa há mais de 5 min deve ser removida e liberar vaga para nova sessão."""
+        # 1 inativa (vai ser removida pelo cleanup)
+        self._add_session(minutes_inactive=SESSION_INACTIVITY_TIMEOUT_MINUTES + 1)
+        # 3 ativas => total de 4 (limite atingido antes do cleanup)
+        for _ in range(MAX_CONCURRENT_SESSIONS - 1):
+            self._add_session()
+
+        with patch("backend.main.client") as mock_client:
+            mock_client.messages.create = mock_anthropic_client.messages.create
+            response = client.post("/chat", json={"message": "oi"})
+
+        assert response.status_code == 200
+
+    def test_cleanup_removes_only_inactive_sessions(self, client):
+        """cleanup_inactive_sessions deve remover apenas sessões expiradas, preservando as ativas."""
+        active_sid = self._add_session()
+        inactive_sid = self._add_session(
+            minutes_inactive=SESSION_INACTIVITY_TIMEOUT_MINUTES + 1
+        )
+
+        removed = main_module.cleanup_inactive_sessions()
+
+        assert removed == 1
+        assert active_sid in main_module.sessions
+        assert inactive_sid not in main_module.sessions
+
+    def test_max_four_sessions_allowed(self, client, mock_anthropic_client):
+        """Exatamente 4 sessões simultâneas devem ser aceitas."""
+        with patch("backend.main.client") as mock_client:
+            mock_client.messages.create = mock_anthropic_client.messages.create
+            for i in range(MAX_CONCURRENT_SESSIONS):
+                response = client.post("/chat", json={"message": f"sessão {i + 1}"})
+                assert response.status_code == 200
+
+        assert len(main_module.sessions) == MAX_CONCURRENT_SESSIONS
+
+    def test_session_limit_constant_is_four(self):
+        """Constante MAX_CONCURRENT_SESSIONS deve ser 4."""
+        assert MAX_CONCURRENT_SESSIONS == 4
+
+    def test_inactivity_timeout_constant_is_five_minutes(self):
+        """Constante SESSION_INACTIVITY_TIMEOUT_MINUTES deve ser 5."""
+        assert SESSION_INACTIVITY_TIMEOUT_MINUTES == 5
