@@ -30,6 +30,7 @@ body {
     overflow: hidden;
     position: relative;
     padding: 20px;
+    line-height: 1.4;
 }
 
 /* Stunning Animated Background */
@@ -241,7 +242,7 @@ body {
     padding: 30px;
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 16px;
     scroll-behavior: smooth;
 }
 
@@ -330,13 +331,58 @@ body {
 
 .message-bubble {
     max-width: 80%;
-    padding: 16px 20px;
+    padding: 10px 14px;
     font-size: 0.95rem;
-    line-height: 1.6;
+    line-height: 1.5;
     letter-spacing: 0.01em;
     word-wrap: break-word;
-    white-space: pre-wrap;
+    white-space: normal;
+    /* Mudado de pre-wrap para normal para Markdown */
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Formatação específica para o conteúdo Markdown gerado pelo Marked.js */
+.message-bubble p {
+    margin-bottom: 0.5em;
+}
+
+.message-bubble p:last-child {
+    margin-bottom: 0;
+}
+
+.message-bubble h1,
+.message-bubble h2,
+.message-bubble h3,
+.message-bubble h4,
+.message-bubble h5,
+.message-bubble h6 {
+    margin-top: 1em;
+    margin-bottom: 0.5em;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.message-bubble h1 {
+    font-size: 1.2rem;
+}
+
+.message-bubble h2 {
+    font-size: 1.1rem;
+}
+
+.message-bubble h3 {
+    font-size: 1.05rem;
+}
+
+.message-bubble ul,
+.message-bubble ol {
+    margin-top: 0.5em;
+    margin-bottom: 0.5em;
+    padding-left: 1.5em;
+}
+
+.message-bubble li {
+    margin-bottom: 0.25em;
 }
 
 .message.user .message-bubble {
@@ -354,14 +400,18 @@ body {
     border-radius: 20px 20px 20px 4px;
 }
 
-/* Format HTML responses */
+/* Format HTML responses (Blocos de código) */
 .message-bubble pre {
     background: rgba(0, 0, 0, 0.3) !important;
-    padding: 12px !important;
+    padding: 10px !important;
     border-radius: 8px !important;
     overflow-x: auto;
     margin: 8px 0;
+    font-size: 0.85em;
+    /* Diminuído para caber melhor */
     font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+    white-space: pre;
+    /* Garante que o pre funcione corretamente */
 }
 
 .message-bubble code {
