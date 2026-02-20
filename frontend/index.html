@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat com Claude AI</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1>💬 Chat com Claude AI</h1>
+            <button id="clear-btn" class="clear-btn" title="Limpar conversa">🗑️</button>
+        </div>
+
+        <div class="messages-container" id="messages">
+            <div class="welcome-message">
+                <p>👋 Olá! Sou o Claude. Como posso ajudar você hoje?</p>
+            </div>
+        </div>
+
+        <div class="input-container">
+            <textarea
+                id="message-input"
+                placeholder="Digite sua mensagem aqui..."
+                rows="1"
+                maxlength="2000"
+            ></textarea>
+            <button id="send-btn" class="send-btn" title="Enviar mensagem">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                </svg>
+            </button>
+        </div>
+
+        <div class="char-counter">
+            <span id="char-count">0</span> / 2000
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
