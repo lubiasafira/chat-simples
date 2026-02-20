@@ -215,3 +215,36 @@ async def get_history():
         "window_size": SLIDING_WINDOW_SIZE,
         "history": conversation_history
     }
+
+
+@app.get("/health")
+async def health_check():
+    """
+    Verifica se a API está funcionando e se a API Key está configurada.
+
+    Returns:
+        Dict com status da aplicação e configuração da API Key
+    """
+    api_key_configured = bool(ANTHROPIC_API_KEY)
+    api_key_preview = f"{ANTHROPIC_API_KEY[:8]}..." if api_key_configured and len(ANTHROPIC_API_KEY) > 8 else "Not configured"
+
+    # Testar conexão com a API da Anthropic
+    api_working = False
+    error_message = None
+    try:
+        test_response = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=10,
+            messages=[{"role": "user", "content": "Hi"}]
+        )
+        api_working = True
+    except Exception as e:
+        error_message = str(e)
+
+    return {
+        "status": "healthy" if api_working else "unhealthy",
+        "api_key_configured": api_key_configured,
+        "api_key_preview": api_key_preview,
+        "anthropic_api_working": api_working,
+        "error": error_message
+    }
