@@ -1,6 +1,8 @@
 // Configuração da API
-// Usa URL relativa para funcionar tanto localmente quanto em produção
-const API_URL = window.location.origin;
+// Detecta automaticamente se está em produção ou desenvolvimento local
+const API_URL = window.location.origin.includes('railway.app')
+    ? window.location.origin
+    : 'http://localhost:8000';
 
 // Elementos do DOM
 const messagesContainer = document.getElementById('messages');
