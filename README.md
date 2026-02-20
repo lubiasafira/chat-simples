@@ -2,11 +2,18 @@
 
 Projeto educacional de chat que usa a API da Anthropic (Claude) com implementação de **janela deslizante** para gerenciar contexto da conversa.
 
+## 🤖 Modelo LLM Utilizado
+
+Este projeto utiliza o **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`), o modelo mais rápido e econômico da família Claude 4.5, ideal para aplicações de chat que precisam de:
+- Respostas rápidas e eficientes
+- Menor custo por token (até 90% mais barato que Opus)
+- Excelente qualidade para conversas gerais
+
 ## 📋 O que é Janela Deslizante?
 
 A janela deslizante mantém apenas as **últimas 6 mensagens** (3 turnos de conversa) no contexto enviado para a API do Claude. Isso:
 - Otimiza o uso de tokens
-- Reduz custos de API
+- Reduz custos de API drasticamente
 - Mantém a conversa focada no contexto recente
 
 ## 🚀 Deploy no Railway (Plano Free)

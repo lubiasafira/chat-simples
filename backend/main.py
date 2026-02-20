@@ -178,7 +178,7 @@ async def chat(request: ChatRequest):
 
         # Chamar Claude API
         response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-haiku-4-5-20251001",
             max_tokens=1024,
             messages=sliding_window
         )
@@ -355,7 +355,7 @@ async def health_check():
     error_message = None
     try:
         test_response = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
+            model="claude-haiku-4-5-20251001",
             max_tokens=10,
             messages=[{"role": "user", "content": "Hi"}]
         )

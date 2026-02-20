@@ -75,100 +75,6 @@ uvicorn backend.main:app --reload
 4. Testar erros (API key inválida, servidor offline, mensagem vazia)
 5. Ajustes finais (corrigir bugs, melhorar feedback)
 
-#### 🔴 Prioridade CRÍTICA (Segurança/Funcionalidade)
-1. Implementar gerenciamento de sessões (substituir estado global compartilhado)
-   - Criar session_id único por usuário
-   - Armazenar históricos separados por sessão
-   - Implementar limpeza automática de sessões antigas
-2. Configurar CORS restritivo (substituir allow_origins=["*"])
-   - Definir origens permitidas via variável de ambiente
-   - Adicionar validação de referer
-3. Implementar autenticação básica
-   - Adicionar API key do cliente (diferente da Anthropic)
-   - Validar requisições com header Authorization
-4. Proteger endpoint /history
-   - Adicionar autenticação obrigatória
-   - Retornar apenas histórico da sessão do usuário
-5. Implementar secret management
-   - Usar variáveis de ambiente para todas credenciais
-   - Adicionar validação de API key no startup
-
-6. Refatorar arquitetura em camadas
-   - Criar services/ (lógica de negócio)
-   - Criar repositories/ (acesso a dados)
-   - Criar models/ (schemas Pydantic)
-   - Separar routers/ (endpoints)
-7. Implementar persistência de dados
-   - Adicionar Redis ou SQLite para histórico
-   - Criar repository pattern para acesso aos dados
-8. Externalizar configurações
-   - Criar config.py com Settings do Pydantic
-   - Mover model ID, limites e constantes para .env
-9. Adicionar variáveis de ambiente para frontend
-   - Criar config.js que lê de window.ENV
-   - Configurar build process para diferentes ambientes
-10. Implementar tratamento específico de erros
-    - Criar exceções customizadas
-    - Tratar erros específicos da API Anthropic
-    - Retornar mensagens apropriadas ao usuário
-11. Separar backend e frontend (arquitetura)
-    - Remover StaticFiles do FastAPI
-    - Documentar como servir frontend via nginx/CDN
-
-
-12. Implementar sistema de logs
-    - Adicionar logging estruturado (JSON)
-    - Configurar níveis (DEBUG, INFO, WARNING, ERROR)
-    - Log de requisições, erros e métricas
-13. Adicionar rate limiting
-    - Implementar limite por IP ou API key
-    - Usar slowapi ou middleware customizado
-14. Configurar ambientes (dev/staging/prod)
-    - Criar .env.example, .env.dev, .env.prod
-    - Documentar variáveis obrigatórias
-15. Melhorar documentação OpenAPI
-    - Adicionar descrições detalhadas
-    - Criar exemplos de request/response
-    - Documentar códigos de erro
-16. Criar endpoints de observabilidade
-    - Implementar /health (status do serviço)
-    - Implementar /ready (dependências OK)
-    - Implementar /metrics (Prometheus format)
-17. Configurar timeout nas requisições
-    - Adicionar timeout para API Anthropic
-    - Implementar retry com backoff exponencial
-18. Adicionar validações de segurança
-    - Sanitizar input (prompt injection)
-    - Validar tamanho total da requisição
-    - Implementar content security policy
-
-
-19. Configurar tipagem estrita
-    - Adicionar mypy ao projeto
-    - Configurar pyproject.toml com strict mode
-    - Corrigir todos os erros de tipo
-20. Implementar versionamento de API
-    - Mover endpoints para /v1/
-    - Preparar estrutura para v2
-21. Adicionar compressão HTTP
-    - Configurar GZipMiddleware
-    - Testar compressão de respostas grandes
-22. Renderizar markdown no frontend
-    - Adicionar biblioteca (marked.js ou similar)
-    - Sanitizar HTML com DOMPurify
-    - Aplicar syntax highlighting para código
-23. Implementar autenticação completa
-    - Adicionar JWT tokens
-    - Criar endpoint de login
-    - Implementar refresh tokens
-24. Criar suite completa de testes
-    - Testes E2E com Playwright
-    - Testes de carga com Locust
-    - Testes de segurança (OWASP)
-25. Configurar CI/CD
-    - GitHub Actions para testes
-    - Linting automático (ruff, black)
-    - Deploy automatizado
 
 
 
@@ -210,4 +116,18 @@ uvicorn backend.main:app --reload
 - [x] Validar janela deslizante (histórico limitado)
 - [x] Testar erros (API key inválida, servidor offline, mensagem vazia)
 - [x] Ajustes finais (corrigir bugs, melhorar feedback)
+
+### Fase 5: Melhorias e Refatorações
+- [ ] refatorar em módulos backend/main.py
+    - [x] corrigir Estado global compartilhado entre todos os usuários
+    - [ ] CORS totalmente aberto
+- [ ] Troca o modulo LLM para Haiku
+- [ ] Criar sessões para cada usuário
+- [ ] limitar número de usuário para 3
+- [ ] aumentar a quandidade da janela deslizante para 10 turnos
+
+## Fase 6: melhorias no frontend
+- [ ] implemente nova frontend utilizando gemini 3.1
+
+
 
