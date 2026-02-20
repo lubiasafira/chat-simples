@@ -18,6 +18,10 @@ import backend.main as main_module
 from backend.main import app, SLIDING_WINDOW_SIZE, MAX_MESSAGE_LENGTH
 
 
+# Session ID fixo para testes
+TEST_SESSION_ID = "test-session-123"
+
+
 @pytest.fixture
 def client():
     """
@@ -30,16 +34,18 @@ def client():
 
 
 @pytest.fixture(autouse=True)
-def clear_conversation_history():
+def clear_sessions():
     """
-    Fixture que limpa o histórico de conversas antes e depois de cada teste.
+    Fixture que limpa as sessões e rate limit antes e depois de cada teste.
 
     Garante isolamento entre os testes, evitando que o estado de um teste
     afete outro.
     """
-    main_module.conversation_history.clear()
+    main_module.sessions.clear()
+    main_module.rate_limit_tracker.clear()
     yield
-    main_module.conversation_history.clear()
+    main_module.sessions.clear()
+    main_module.rate_limit_tracker.clear()
 
 
 @pytest.fixture
@@ -87,32 +93,34 @@ class TestChatEndpoint:
         """Testa envio de mensagem válida."""
         mock_client.messages.create = mock_anthropic_client.messages.create
 
-        response = client.post("/chat", json={"message": "Olá, Claude!"})
+        response = client.post("/chat", json={"message": "Olá, Claude!", "session_id": TEST_SESSION_ID})
 
         assert response.status_code == 200
         data = response.json()
 
         assert "response" in data
         assert "history_size" in data
+        assert "session_id" in data
         assert data["response"] == "Resposta do Claude"
         assert data["history_size"] == 2  # user + assistant
+        assert data["session_id"] == TEST_SESSION_ID
 
     def test_chat_with_empty_message(self, client):
         """Testa que mensagem vazia retorna erro de validação."""
-        response = client.post("/chat", json={"message": ""})
+        response = client.post("/chat", json={"message": "", "session_id": TEST_SESSION_ID})
 
         assert response.status_code == 422  # Unprocessable Entity
 
     def test_chat_with_whitespace_only_message(self, client):
         """Testa que mensagem com apenas espaços retorna erro."""
-        response = client.post("/chat", json={"message": "   "})
+        response = client.post("/chat", json={"message": "   ", "session_id": TEST_SESSION_ID})
 
         assert response.status_code == 422
 
     def test_chat_with_message_exceeding_max_length(self, client):
         """Testa que mensagem muito longa retorna erro."""
         long_message = "a" * (MAX_MESSAGE_LENGTH + 1)
-        response = client.post("/chat", json={"message": long_message})
+        response = client.post("/chat", json={"message": long_message, "session_id": TEST_SESSION_ID})
 
         assert response.status_code == 422
 
@@ -120,7 +128,7 @@ class TestChatEndpoint:
         """Testa que mensagem no limite máximo é aceita."""
         with patch('backend.main.client', mock_anthropic_client):
             max_message = "a" * MAX_MESSAGE_LENGTH
-            response = client.post("/chat", json={"message": max_message})
+            response = client.post("/chat", json={"message": max_message, "session_id": TEST_SESSION_ID})
 
             assert response.status_code == 200
 
@@ -129,24 +137,25 @@ class TestChatEndpoint:
         """Testa que espaços nas pontas da mensagem são removidos."""
         mock_client.messages.create = mock_anthropic_client.messages.create
 
-        response = client.post("/chat", json={"message": "  Olá!  "})
+        response = client.post("/chat", json={"message": "  Olá!  ", "session_id": TEST_SESSION_ID})
 
         assert response.status_code == 200
         # Verificar se a mensagem foi adicionada ao histórico sem espaços
-        assert main_module.conversation_history[0]["content"] == "Olá!"
+        assert main_module.sessions[TEST_SESSION_ID]["history"][0]["content"] == "Olá!"
 
     @patch('backend.main.client')
     def test_chat_adds_messages_to_history(self, mock_client, client, mock_anthropic_client):
         """Testa que mensagens são adicionadas ao histórico corretamente."""
         mock_client.messages.create = mock_anthropic_client.messages.create
 
-        client.post("/chat", json={"message": "Primeira mensagem"})
+        client.post("/chat", json={"message": "Primeira mensagem", "session_id": TEST_SESSION_ID})
 
-        assert len(main_module.conversation_history) == 2
-        assert main_module.conversation_history[0]["role"] == "user"
-        assert main_module.conversation_history[0]["content"] == "Primeira mensagem"
-        assert main_module.conversation_history[1]["role"] == "assistant"
-        assert main_module.conversation_history[1]["content"] == "Resposta do Claude"
+        history = main_module.sessions[TEST_SESSION_ID]["history"]
+        assert len(history) == 2
+        assert history[0]["role"] == "user"
+        assert history[0]["content"] == "Primeira mensagem"
+        assert history[1]["role"] == "assistant"
+        assert history[1]["content"] == "Resposta do Claude"
 
     @patch('backend.main.client')
     def test_chat_sliding_window_applies_correctly(self, mock_client, client, mock_anthropic_client):
@@ -155,16 +164,18 @@ class TestChatEndpoint:
 
         # Enviar 5 mensagens (cada uma adiciona 2: user + assistant = 10 no total)
         for i in range(5):
-            client.post("/chat", json={"message": f"Mensagem {i+1}"})
+            client.post("/chat", json={"message": f"Mensagem {i+1}", "session_id": TEST_SESSION_ID})
 
         # Verificar que temos 10 mensagens no histórico
-        assert len(main_module.conversation_history) == 10
+        history = main_module.sessions[TEST_SESSION_ID]["history"]
+        assert len(history) == 10
 
         # Fazer mais uma requisição e verificar que apenas as últimas 6 são enviadas
-        response = client.post("/chat", json={"message": "Mensagem 6"})
+        response = client.post("/chat", json={"message": "Mensagem 6", "session_id": TEST_SESSION_ID})
 
         # Verificar que o histórico completo tem 12 mensagens
-        assert len(main_module.conversation_history) == 12
+        history = main_module.sessions[TEST_SESSION_ID]["history"]
+        assert len(history) == 12
 
         # Verificar que apenas as últimas 6 mensagens foram enviadas para a API
         # (a janela deslizante deve ter pegado as últimas 6 antes de adicionar a nova)
@@ -178,7 +189,7 @@ class TestChatEndpoint:
         """Testa que erro da API do Claude retorna HTTP 500."""
         mock_client.messages.create.side_effect = Exception("API Error")
 
-        response = client.post("/chat", json={"message": "Teste"})
+        response = client.post("/chat", json={"message": "Teste", "session_id": TEST_SESSION_ID})
 
         assert response.status_code == 500
         assert "Erro ao processar mensagem" in response.json()["detail"]
@@ -193,39 +204,35 @@ class TestClearEndpoint:
         mock_client.messages.create = mock_anthropic_client.messages.create
 
         # Adicionar algumas mensagens
-        client.post("/chat", json={"message": "Mensagem 1"})
-        client.post("/chat", json={"message": "Mensagem 2"})
+        client.post("/chat", json={"message": "Mensagem 1", "session_id": TEST_SESSION_ID})
+        client.post("/chat", json={"message": "Mensagem 2", "session_id": TEST_SESSION_ID})
 
-        assert len(main_module.conversation_history) > 0
+        history = main_module.sessions[TEST_SESSION_ID]["history"]
+        assert len(history) > 0
 
         # Limpar histórico
-        response = client.post("/clear")
+        response = client.post("/clear", json={"session_id": TEST_SESSION_ID})
 
         assert response.status_code == 200
         assert response.json()["message"] == "Histórico limpo com sucesso"
-        assert len(main_module.conversation_history) == 0
+        assert len(main_module.sessions[TEST_SESSION_ID]["history"]) == 0
 
-    def test_clear_on_empty_history(self, client):
-        """Testa que clear funciona mesmo com histórico vazio."""
-        response = client.post("/clear")
+    def test_clear_on_nonexistent_session(self, client):
+        """Testa que clear retorna 404 para sessão inexistente."""
+        response = client.post("/clear", json={"session_id": "nonexistent-session"})
 
-        assert response.status_code == 200
-        assert len(main_module.conversation_history) == 0
+        assert response.status_code == 404
 
 
 class TestHistoryEndpoint:
-    """Testes para o endpoint GET /history"""
+    """Testes para o endpoint GET /history/{session_id}"""
 
-    def test_history_on_empty_conversation(self, client):
-        """Testa que history retorna estrutura correta com histórico vazio."""
-        response = client.get("/history")
+    @patch('backend.main.client')
+    def test_history_on_new_session(self, mock_client, client, mock_anthropic_client):
+        """Testa que history retorna 404 para sessão inexistente."""
+        response = client.get(f"/history/{TEST_SESSION_ID}")
 
-        assert response.status_code == 200
-        data = response.json()
-
-        assert data["total_messages"] == 0
-        assert data["window_size"] == SLIDING_WINDOW_SIZE
-        assert data["history"] == []
+        assert response.status_code == 404
 
     @patch('backend.main.client')
     def test_history_returns_all_messages(self, mock_client, client, mock_anthropic_client):
@@ -233,10 +240,10 @@ class TestHistoryEndpoint:
         mock_client.messages.create = mock_anthropic_client.messages.create
 
         # Adicionar mensagens
-        client.post("/chat", json={"message": "Mensagem 1"})
-        client.post("/chat", json={"message": "Mensagem 2"})
+        client.post("/chat", json={"message": "Mensagem 1", "session_id": TEST_SESSION_ID})
+        client.post("/chat", json={"message": "Mensagem 2", "session_id": TEST_SESSION_ID})
 
-        response = client.get("/history")
+        response = client.get(f"/history/{TEST_SESSION_ID}")
         data = response.json()
 
         assert response.status_code == 200
@@ -259,9 +266,9 @@ class TestHistoryEndpoint:
 
         # Adicionar 5 mensagens (10 no total)
         for i in range(5):
-            client.post("/chat", json={"message": f"Mensagem {i+1}"})
+            client.post("/chat", json={"message": f"Mensagem {i+1}", "session_id": TEST_SESSION_ID})
 
-        response = client.get("/history")
+        response = client.get(f"/history/{TEST_SESSION_ID}")
         data = response.json()
 
         assert data["total_messages"] == 10
@@ -305,12 +312,13 @@ class TestSlidingWindowBehavior:
 
         # Adicionar 3 turnos (6 mensagens)
         for i in range(3):
-            client.post("/chat", json={"message": f"Mensagem {i+1}"})
+            client.post("/chat", json={"message": f"Mensagem {i+1}", "session_id": TEST_SESSION_ID})
 
-        assert len(main_module.conversation_history) == 6
+        history = main_module.sessions[TEST_SESSION_ID]["history"]
+        assert len(history) == 6
 
         # Próxima mensagem deve usar janela deslizante
-        client.post("/chat", json={"message": "Mensagem 4"})
+        client.post("/chat", json={"message": "Mensagem 4", "session_id": TEST_SESSION_ID})
 
         call_args = mock_client.messages.create.call_args
         messages_sent = call_args.kwargs['messages']
@@ -325,10 +333,11 @@ class TestSlidingWindowBehavior:
 
         # Adicionar muitas mensagens
         for i in range(10):
-            client.post("/chat", json={"message": f"Mensagem {i+1}"})
+            client.post("/chat", json={"message": f"Mensagem {i+1}", "session_id": TEST_SESSION_ID})
 
         # Histórico deve ter todas as 20 mensagens
-        assert len(main_module.conversation_history) == 20
+        history = main_module.sessions[TEST_SESSION_ID]["history"]
+        assert len(history) == 20
 
         # Mas apenas as últimas 6 devem ser enviadas
         call_args = mock_client.messages.create.call_args
@@ -342,6 +351,83 @@ class TestSlidingWindowBehavior:
         assert messages_sent[-1]["content"] == "Mensagem 10"
 
 
+class TestRateLimiting:
+    """Testes para o rate limiting"""
+
+    @patch('backend.main.client')
+    def test_rate_limit_allows_requests_under_limit(self, mock_client, client, mock_anthropic_client):
+        """Testa que requisições dentro do limite são permitidas."""
+        mock_client.messages.create = mock_anthropic_client.messages.create
+
+        # Enviar algumas requisições (menos que o limite)
+        for i in range(5):
+            response = client.post("/chat", json={"message": f"Mensagem {i+1}", "session_id": TEST_SESSION_ID})
+            assert response.status_code == 200
+
+    @patch('backend.main.client')
+    def test_rate_limit_blocks_excessive_requests(self, mock_client, client, mock_anthropic_client):
+        """Testa que requisições excessivas são bloqueadas com HTTP 429."""
+        mock_client.messages.create = mock_anthropic_client.messages.create
+
+        # Enviar requisições até exceder o limite (10 requisições por minuto)
+        for i in range(main_module.RATE_LIMIT_MAX_REQUESTS):
+            response = client.post("/chat", json={"message": f"Mensagem {i+1}", "session_id": TEST_SESSION_ID})
+            assert response.status_code == 200
+
+        # A próxima requisição deve ser bloqueada
+        response = client.post("/chat", json={"message": "Mensagem extra", "session_id": TEST_SESSION_ID})
+        assert response.status_code == 429
+        assert "Limite de requisições excedido" in response.json()["detail"]
+
+    @patch('backend.main.client')
+    def test_rate_limit_per_session(self, mock_client, client, mock_anthropic_client):
+        """Testa que rate limit é aplicado por sessão."""
+        mock_client.messages.create = mock_anthropic_client.messages.create
+
+        session_a = "session-a"
+        session_b = "session-b"
+
+        # Esgotar limite da sessão A
+        for i in range(main_module.RATE_LIMIT_MAX_REQUESTS):
+            response = client.post("/chat", json={"message": f"Mensagem {i+1}", "session_id": session_a})
+            assert response.status_code == 200
+
+        # Sessão A está bloqueada
+        response = client.post("/chat", json={"message": "Bloqueada", "session_id": session_a})
+        assert response.status_code == 429
+
+        # Sessão B ainda pode enviar
+        response = client.post("/chat", json={"message": "Permitida", "session_id": session_b})
+        assert response.status_code == 200
+
+
+class TestSessionIsolation:
+    """Testes para isolamento de sessões"""
+
+    @patch('backend.main.client')
+    def test_sessions_are_isolated(self, mock_client, client, mock_anthropic_client):
+        """Testa que sessões diferentes têm históricos separados."""
+        mock_client.messages.create = mock_anthropic_client.messages.create
+
+        session_a = "session-a"
+        session_b = "session-b"
+
+        # Enviar mensagem na sessão A
+        client.post("/chat", json={"message": "Mensagem A", "session_id": session_a})
+
+        # Enviar mensagem na sessão B
+        client.post("/chat", json={"message": "Mensagem B", "session_id": session_b})
+
+        # Verificar isolamento
+        history_a = main_module.sessions[session_a]["history"]
+        history_b = main_module.sessions[session_b]["history"]
+
+        assert history_a[0]["content"] == "Mensagem A"
+        assert history_b[0]["content"] == "Mensagem B"
+        assert len(history_a) == 2
+        assert len(history_b) == 2
+
+
 class TestIntegration:
     """Testes de integração para fluxos completos"""
 
@@ -351,23 +437,23 @@ class TestIntegration:
         mock_client.messages.create = mock_anthropic_client.messages.create
 
         # 1. Enviar mensagem
-        response1 = client.post("/chat", json={"message": "Olá"})
+        response1 = client.post("/chat", json={"message": "Olá", "session_id": TEST_SESSION_ID})
         assert response1.status_code == 200
         assert response1.json()["history_size"] == 2
 
         # 2. Verificar histórico
-        history_response = client.get("/history")
+        history_response = client.get(f"/history/{TEST_SESSION_ID}")
         assert history_response.json()["total_messages"] == 2
 
         # 3. Enviar outra mensagem
-        response2 = client.post("/chat", json={"message": "Como você está?"})
+        response2 = client.post("/chat", json={"message": "Como você está?", "session_id": TEST_SESSION_ID})
         assert response2.status_code == 200
         assert response2.json()["history_size"] == 4
 
         # 4. Limpar histórico
-        clear_response = client.post("/clear")
+        clear_response = client.post("/clear", json={"session_id": TEST_SESSION_ID})
         assert clear_response.status_code == 200
 
         # 5. Verificar que histórico está vazio
-        final_history = client.get("/history")
+        final_history = client.get(f"/history/{TEST_SESSION_ID}")
         assert final_history.json()["total_messages"] == 0

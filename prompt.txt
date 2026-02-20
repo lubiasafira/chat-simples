@@ -141,3 +141,66 @@ Analise meu projeto liste o que falta para fazer deploy no railway free, ignore 
 O projeto @plan.md  é um chat simples em html css js que utiliza api da anthopic. é uma atividada para um treinamento sobre janela deslizante.
 
 A lista deve ser númerada, sem tabelas, sem alterar nenhum arquivo
+
+
+Prompt
+
+Você um programador sênior python, com especialidade em retaração de código legado.
+
+Analise backend/main.py de sugestão de refatoração e melhoria de código sem alterar seu comportamento.
+
+O projeto @plan.md é um chat simples em html css js que utiliza api da claude. é uma atividada para um treinamento sobre janela deslizante.
+
+somente analise main.py pontue um lista em ordem de severidade.
+
+Prompt
+
+Você é um programador sênior python, com especialidade em retaração de código legado.
+
+Implemente correção estado global compartilhado entre todos os usuários. Criando sessão para cada usuário.
+
+O projeto @plan.md é um chat simples em html css js que utiliza api da claude. é uma atividada para um treinamento sobre janela deslizante. atualmente compartilhado `conversation_history` com todos aos usuários.
+
+Os demais comportamento de main.py deve ser mantido.
+
+Prompt
+
+Você é um programador sênior python.
+
+Altere o modelo da api de LLM de sonnet para haiku 4.5.
+
+O projeto @plan.md é um chat simples em html css js que utiliza api da claude. a alteração do modulo envolve diminuir os custo do tokens
+
+Altere apenas o main.py e README sobre o modelo.
+
+prompt
+Você é um programador senior python especializado em refatoração de código legado.
+
+Analise backend/main.py e dê sugestão sobre o issues: CORS totalmente aberto.
+
+O projeto @plan.md é um chat simples em html css js que utiliza api da claude. A implementação de backend/main.py está com cors totalmente aberto.
+
+Não altere nenhum arquivo. Crie um lista escalado por ações mais recomandadas e menos recomandadas neste caso.
+
+
+prompt 
+
+
+Você é um programador sênior python com expecialidade refatoração de código.
+
+implemente limitação de requisição a api da Anthropic.
+
+O projeto @plan.md é um chat simples em html css js que utiliza api da claude. atualmente O projeto não tem nenhum limitação de requisição a api da Anthropic.
+
+Não altere qualquer outro comportamento do projeto.
+
+
+
+
+Você é um programador sênior python com expecialidade refatoração de código.
+
+Altere o janela deslizante para 10 turnos.
+
+O projeto @plan.md é um chat simples em html css js que utiliza api da claude que utiliza janela deslizante como persitência da conversa. atualmente a janela deslizante é de 6 turnos.
+
+Não altere qualquer outro comportamento do projeto.

@@ -121,9 +121,9 @@ uvicorn backend.main:app --reload
 - [ ] refatorar em módulos backend/main.py
     - [x] corrigir Estado global compartilhado entre todos os usuários
     - [ ] CORS totalmente aberto
-- [ ] Troca o modulo LLM para Haiku
-- [ ] Criar sessões para cada usuário
-- [ ] limitar número de usuário para 3
+- [x] Troca o modulo LLM para Haiku
+- [x] Criar sessões para cada usuário
+- [ ] limitar requisão a api
 - [ ] aumentar a quandidade da janela deslizante para 10 turnos
 
 ## Fase 6: melhorias no frontend

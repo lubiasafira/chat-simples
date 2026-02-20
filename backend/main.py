@@ -27,6 +27,10 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 MAX_MESSAGE_LENGTH = 2000
 SLIDING_WINDOW_SIZE = 6  # 6 mensagens = 3 turnos (user + assistant)
 
+# Rate limiting - limitação de requisições à API
+RATE_LIMIT_MAX_REQUESTS = 10  # Máximo de requisições por janela de tempo
+RATE_LIMIT_WINDOW_SECONDS = 60  # Janela de tempo em segundos (1 minuto)
+
 # Inicializar FastAPI
 app = FastAPI(title="Chat com Janela Deslizante")
 
@@ -51,6 +55,10 @@ client = Anthropic(api_key=ANTHROPIC_API_KEY)
 # Estrutura: {session_id: {"history": [...], "last_activity": datetime}}
 sessions: Dict[str, Dict] = {}
 
+# Rate limiting - rastreamento de requisições por sessão
+# Estrutura: {session_id: [timestamp1, timestamp2, ...]}
+rate_limit_tracker: Dict[str, List[datetime]] = {}
+
 # Configurar servir arquivos estáticos (frontend)
 # Obter caminho absoluto do diretório frontend
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -58,6 +66,42 @@ FRONTEND_DIR = BASE_DIR / "frontend"
 
 # Montar o diretório de arquivos estáticos
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
+
+
+def check_rate_limit(session_id: str) -> bool:
+    """
+    Verifica se a sessão excedeu o limite de requisições.
+
+    Implementa rate limiting usando janela deslizante de tempo.
+    Remove timestamps antigos e verifica se o número de requisições
+    recentes está dentro do limite permitido.
+
+    Args:
+        session_id: ID da sessão a verificar
+
+    Returns:
+        True se a requisição é permitida, False se excedeu o limite
+    """
+    now = datetime.now()
+    window_start = now - timedelta(seconds=RATE_LIMIT_WINDOW_SECONDS)
+
+    # Inicializar lista se sessão não existe
+    if session_id not in rate_limit_tracker:
+        rate_limit_tracker[session_id] = []
+
+    # Remover timestamps fora da janela de tempo
+    rate_limit_tracker[session_id] = [
+        ts for ts in rate_limit_tracker[session_id]
+        if ts > window_start
+    ]
+
+    # Verificar se está dentro do limite
+    if len(rate_limit_tracker[session_id]) >= RATE_LIMIT_MAX_REQUESTS:
+        return False
+
+    # Registrar nova requisição
+    rate_limit_tracker[session_id].append(now)
+    return True
 
 
 class ChatRequest(BaseModel):
@@ -153,6 +197,13 @@ async def chat(request: ChatRequest):
         # Gerar ou usar session_id fornecido
         session_id = request.session_id or str(uuid.uuid4())
 
+        # Verificar rate limit antes de processar
+        if not check_rate_limit(session_id):
+            raise HTTPException(
+                status_code=429,
+                detail=f"Limite de requisições excedido. Máximo de {RATE_LIMIT_MAX_REQUESTS} mensagens por {RATE_LIMIT_WINDOW_SECONDS} segundos. Aguarde um momento."
+            )
+
         # Inicializar sessão se não existir
         if session_id not in sessions:
             sessions[session_id] = {
@@ -199,6 +250,9 @@ async def chat(request: ChatRequest):
             session_id=session_id
         )
 
+    except HTTPException:
+        # Re-levantar HTTPExceptions (como rate limit 429) sem modificar
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao processar mensagem: {str(e)}")
 
@@ -331,6 +385,9 @@ async def cleanup_old_sessions(max_age_hours: int = 24):
 
     for session_id in sessions_to_remove:
         del sessions[session_id]
+        # Limpar também o rastreamento de rate limit
+        if session_id in rate_limit_tracker:
+            del rate_limit_tracker[session_id]
 
     return {
         "message": f"Limpeza concluída",
