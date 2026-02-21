@@ -94,8 +94,9 @@ async function handleSendMessage() {
         welcomeMsg.style.display = 'none';
     }
 
-    // Adicionar mensagem do usuário
-    addMessage(message, 'user');
+    // Adicionar mensagem do usuário animada saindo do botão
+    const btnRect = sendBtn.getBoundingClientRect();
+    addMessage(message, 'user', btnRect);
 
     // Limpar input
     messageInput.value = '';
@@ -184,21 +185,79 @@ function formatMessage(text) {
 }
 
 // Adicionar mensagem ao chat
-function addMessage(text, role) {
+function addMessage(text, role, animateFromRect = null) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${role}`;
+
+    if (animateFromRect && role === 'user') {
+        messageDiv.style.animation = 'none';
+        messageDiv.style.opacity = '1';
+        messageDiv.style.transform = 'none';
+        messageDiv.classList.add('animating');
+    }
 
     const bubbleDiv = document.createElement('div');
     bubbleDiv.className = 'message-bubble';
 
+    const contentSpan = document.createElement('div');
+    contentSpan.className = 'msg-content';
+
     if (role === 'assistant') {
-        bubbleDiv.innerHTML = formatMessage(text);
+        contentSpan.innerHTML = formatMessage(text);
     } else {
-        bubbleDiv.textContent = text;
+        contentSpan.textContent = text;
     }
 
+    bubbleDiv.appendChild(contentSpan);
     messageDiv.appendChild(bubbleDiv);
     messagesContainer.appendChild(messageDiv);
+
+    if (animateFromRect && role === 'user') {
+        const bubbleRect = bubbleDiv.getBoundingClientRect();
+
+        const shimmer = document.createElement('div');
+        shimmer.className = 'shimmer-square';
+
+        const startX = animateFromRect.left + animateFromRect.width / 2 - bubbleRect.left - 10;
+        const startY = animateFromRect.top + animateFromRect.height / 2 - bubbleRect.top - 10;
+
+        bubbleDiv.appendChild(shimmer);
+
+        shimmer.style.transition = 'none';
+        shimmer.style.width = '20px';
+        shimmer.style.height = '20px';
+        shimmer.style.transform = `translate(${startX}px, ${startY}px)`;
+        shimmer.style.borderRadius = '14px';
+        shimmer.style.opacity = '1';
+
+        // Forçar reflow
+        void shimmer.offsetHeight;
+
+        shimmer.style.transition = 'all 0.5s cubic-bezier(0.25, 1, 0.4, 1)';
+        shimmer.style.width = `${bubbleRect.width}px`;
+        shimmer.style.height = `${bubbleRect.height}px`;
+        shimmer.style.transform = `translate(0px, 0px)`;
+        shimmer.style.borderRadius = '20px 20px 4px 20px';
+
+        let finished = false;
+        const finishAnimation = () => {
+            if (finished) return;
+            finished = true;
+            messageDiv.classList.remove('animating');
+            contentSpan.style.opacity = '1';
+
+            shimmer.style.transition = 'opacity 0.2s ease-out';
+            shimmer.style.opacity = '0';
+            setTimeout(() => shimmer.remove(), 200);
+        };
+
+        shimmer.addEventListener('transitionend', (e) => {
+            if (e.propertyName === 'transform') finishAnimation();
+        });
+
+        // Fallback caso a transição não dispare perfeitamente
+        setTimeout(finishAnimation, 600);
+    }
 
     // Permitir o frame para a animação ocorrer e então scrollToBottom
     requestAnimationFrame(() => scrollToBottom());
