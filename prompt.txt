@@ -225,3 +225,29 @@ Reimplemente em frontend/index.html um chat simples com HTML/CSS/JS que faz o co
 o projeto em @plan.md é um implementação de um chat simples em HTML/CSS/JS com backend FastAPI utilizando a API claude.
 
 Não altere o comportamento da comunição entre a frontend e FastAPI
+
+
+Você é um Front-end Developer com foco em UX.
+
+Crie uma animação de hover no botão de enviar mensagem. O botão deve brilhar ao passar o cursos do mouse por cima.
+
+o projeto em @plan.md é um implementação de um chat simples em HTML/CSS/JS com backend FastAPI utilizando a API claude.
+
+
+Você é um programador sênior python com expecialidade implementação de features.
+
+Altere o system prompt para o chat se comportar de maneira amigável com o usuário. Dizer também que ele é um assistente para tarefas do dia a dia: escrever texto de várias estilos, organizar lista de tarefas, fazer código simples ou apenas bater um papo amigável. 
+Chat precisa ser honosto com sua capacidades e dizer ao usuário quando não pode realizar tarefas fora do seu escopo, por exemplo: relizar pesquisas na internet, ou inventar informações que ele não tem certeza.
+
+o projeto em @plan.md é um implementação de um chat simples em HTML/CSS/JS com backend FastAPI utilizando a API claude.
+
+alteração do system prompt não deve alterar os demais comportamento da aplicação.
+
+Você é um Front-end Developer com foco animações profissionais e fluidas.
+
+Crie uma transição entre: usuário clica no botão de enviar a mensagem / a mensagem aparece na bolha.
+
+o projeto em @plan.md é um implementação de um chat simples em HTML/CSS/JS com backend FastAPI utilizando a API claude.
+
+Quando o usuário clicar no botão de enviar a mensagem, Um pequeno quadrado cintilante com cantos arredondados sai de dentro do botão de enviar e vai em direção ao campo de mensagem se abrindo e se transformando na bolha de mensagem do usuário. 
+

@@ -4,6 +4,7 @@
     1. Um chat que usa janela deslizente
     2. Janela deslizente diz respeito a quantidade de chat que irão permanecer no contexto
     3. Vai pensir me memória apenas
+    4. chat que  ajuda em tarefas simples do dia a dia.
 
 2. Qual api? e como?
     1. Api claude api interface local usando python
