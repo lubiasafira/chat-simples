@@ -89,7 +89,7 @@ class TestRootEndpoint:
         # Verificar que é HTML válido
         html_content = response.text
         assert "<!DOCTYPE html>" in html_content
-        assert "<title>Chat com Claude AI</title>" in html_content
+        assert "<title>Zoria - Assistente Pessoal</title>" in html_content
         assert "messages-container" in html_content
 
 
